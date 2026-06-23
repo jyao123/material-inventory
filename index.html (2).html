@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Material Inventory Manager</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:#f5f6fa;color:#1a1a2e;min-height:100vh}
+.topbar{background:#1F3864;color:#fff;padding:0 2rem;height:56px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px rgba(0,0,0,.18);flex-wrap:wrap;gap:8px}
+.topbar-title{font-size:17px;font-weight:600;display:flex;align-items:center;gap:10px}
+.topbar-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.container{max-width:1100px;margin:0 auto;padding:1.5rem 1rem}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:1.5rem}
+.stat{background:#fff;border-radius:10px;padding:14px 18px;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+.stat-label{font-size:11px;color:#888;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
+.stat-val{font-size:22px;font-weight:700;color:#1F3864}
+.stat-val.warn{color:#c97a00}.stat-val.danger{color:#c0392b}.stat-val.info{color:#2471a3}
+.card{background:#fff;border-radius:12px;box-shadow:0 1px 6px rgba(0,0,0,.08);margin-bottom:1.5rem;overflow:hidden}
+.card-header{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;border-bottom:1px solid #f0f0f0;flex-wrap:wrap;gap:10px}
+.tabs{display:flex;border:1px solid #dde3f0;border-radius:8px;overflow:hidden}
+.tab{font-size:13px;padding:6px 16px;background:transparent;border:none;cursor:pointer;color:#666;transition:all .15s;white-space:nowrap}
+.tab.active{background:#1F3864;color:#fff;font-weight:500}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.search-box{position:relative}
+.search-box input{padding:7px 12px 7px 34px;border:1px solid #dde3f0;border-radius:8px;font-size:13px;width:200px;outline:none}
+.search-box input:focus{border-color:#2471a3}
+.search-box i{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#aaa;font-size:16px}
+.btn{font-size:13px;padding:7px 14px;border-radius:8px;border:1px solid #dde3f0;background:#fff;color:#333;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;transition:all .15s;font-weight:500}
+.btn:hover{background:#f0f3fa}
+.btn.primary{background:#1F3864;color:#fff;border-color:#1F3864}.btn.primary:hover{background:#16294d}
+.btn.ai{background:#1a73e8;color:#fff;border-color:#1a73e8}.btn.ai:hover{background:#1557b0}
+.btn.success{background:#1a7a3c;color:#fff;border-color:#1a7a3c}.btn.success:hover{background:#145f2e}
+.seg{display:flex;border:1px solid #dde3f0;border-radius:8px;overflow:hidden}
+.seg-btn{font-size:12px;padding:6px 13px;background:transparent;border:none;cursor:pointer;color:#666;transition:all .15s;white-space:nowrap}
+.seg-btn.active{background:#1F3864;color:#fff;font-weight:500}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:10px 12px;font-size:11px;font-weight:600;color:#888;background:#f8f9fd;border-bottom:1px solid #eef0f7;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}
+td{padding:10px 12px;border-bottom:1px solid #f3f4f8;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#f8faff}
+.badge{font-size:11px;padding:3px 9px;border-radius:20px;font-weight:600;display:inline-block}
+.badge.ok{background:#d4edda;color:#1a7a3c}
+.badge.low{background:#fff3cd;color:#856404}
+.badge.out{background:#f8d7da;color:#842029}
+.badge.type-in{background:#cce5ff;color:#004085}
+.badge.type-out{background:#f8d7da;color:#721c24}
+.badge.type-adj{background:#e8d5f5;color:#4a1580}
+.badge.type-inv{background:#d4edda;color:#1a7a3c}
+.actions{display:flex;gap:4px}
+.icon-btn{background:transparent;border:none;cursor:pointer;color:#aaa;padding:5px;border-radius:6px;font-size:17px;display:inline-flex;align-items:center;transition:all .15s}
+.icon-btn:hover{background:#f0f3fa;color:#333}
+.icon-btn.red:hover{background:#fdf0ee;color:#c0392b}
+.icon-btn.blue:hover{background:#e8f0fb;color:#1F3864}
+.icon-btn.orange:hover{background:#fff3e0;color:#c97a00}
+.empty{text-align:center;padding:3rem;color:#aaa;font-size:14px}
+.empty i{font-size:36px;display:block;margin-bottom:10px;opacity:.4}
+.section{display:none}.section.active{display:block}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:1000;padding:1rem}
+.modal{background:#fff;border-radius:14px;padding:1.5rem;width:460px;max-width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.2)}
+.modal h3{font-size:16px;font-weight:600;margin-bottom:1.25rem;color:#1F3864}
+.field{margin-bottom:12px}
+.field label{font-size:12px;color:#666;display:block;margin-bottom:4px;font-weight:500}
+.field input,.field select,.field textarea{width:100%;font-size:13px;padding:8px 11px;border-radius:8px;border:1px solid #dde3f0;outline:none;transition:border .15s;background:#fff;color:#333}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:#2471a3}
+.field textarea{resize:vertical;min-height:60px}
+.modal-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:1.25rem;padding-top:1rem;border-top:1px solid #f0f0f0}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.drop-area{border:2px dashed #c5d0e8;border-radius:12px;padding:2rem;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:12px}
+.drop-area:hover,.drop-area.drag{border-color:#1a73e8;background:#eef4ff}
+.drop-area i{font-size:36px;color:#aaa;display:block;margin-bottom:8px}
+.drop-area p{font-size:13px;color:#666}
+.ai-status{font-size:13px;padding:9px 13px;border-radius:8px;margin-bottom:12px;display:none;align-items:center;gap:8px;line-height:1.5}
+.ai-status.loading{background:#e8f0fe;color:#1a73e8;display:flex}
+.ai-status.done{background:#d4edda;color:#1a7a3c;display:flex}
+.ai-status.err{background:#f8d7da;color:#842029;display:flex;flex-direction:column;align-items:flex-start;gap:4px}
+.spin{animation:spin .7s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+.pw-screen{position:fixed;inset:0;background:#1F3864;display:flex;align-items:center;justify-content:center;z-index:2000}
+.pw-box{background:#fff;border-radius:16px;padding:2.5rem;width:340px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.pw-box h2{font-size:20px;font-weight:700;color:#1F3864;margin-bottom:.5rem}
+.pw-box p{font-size:13px;color:#888;margin-bottom:1.5rem}
+.pw-box input{width:100%;font-size:15px;padding:10px 14px;border-radius:8px;border:1px solid #dde3f0;outline:none;text-align:center;letter-spacing:3px;margin-bottom:12px}
+.pw-err{font-size:12px;color:#c0392b;margin-top:-6px;margin-bottom:10px;display:none}
+.mode-badge{font-size:12px;padding:3px 10px;border-radius:20px;font-weight:600}
+.mode-badge.admin{background:#ffd700;color:#1F3864}
+.mode-badge.viewer{background:#e8f0fb;color:#1F3864}
+.preview-tbl-wrap{max-height:180px;overflow-y:auto;border:1px solid #eef0f7;border-radius:8px}
+.preview-tbl-wrap table th{font-size:11px;padding:7px 8px}
+.preview-tbl-wrap table td{padding:5px 8px}
+.preview-tbl-wrap input{padding:3px 6px;font-size:12px;border:1px solid #dde3f0;border-radius:5px;background:#fff;color:#333;width:100%}
+.settings-panel{background:#fff;border-radius:12px;box-shadow:0 1px 6px rgba(0,0,0,.08);padding:1.5rem;margin-bottom:1.5rem;display:none}
+.settings-panel h3{font-size:15px;font-weight:600;color:#1F3864;margin-bottom:1rem;display:flex;align-items:center;gap:8px}
+.api-provider-tabs{display:flex;gap:8px;margin-bottom:1rem}
+.provider-btn{flex:1;padding:10px;border-radius:10px;border:2px solid #dde3f0;background:#fff;cursor:pointer;text-align:center;transition:all .15s}
+.provider-btn.active{border-color:#1a73e8;background:#eef4ff}
+.provider-btn span{font-size:12px;font-weight:600;color:#333;display:block}
+.provider-btn small{font-size:10px;color:#888;display:block;margin-top:2px}
+.api-key-row{display:flex;gap:8px;align-items:center}
+.api-key-row input{flex:1;font-size:13px;padding:8px 11px;border-radius:8px;border:1px solid #dde3f0;outline:none;font-family:monospace}
+.api-key-row input:focus{border-color:#1a73e8}
+.key-saved{font-size:12px;color:#1a7a3c;display:none;align-items:center;gap:4px;margin-top:6px}
+.info-box{background:#eef4ff;border-radius:8px;padding:10px 14px;font-size:12px;color:#1a56a0;margin-top:10px;line-height:1.7}
+.info-box a{color:#1a73e8;text-decoration:none;font-weight:600}
+.info-box a:hover{text-decoration:underline}
+.err-detail{font-size:11px;background:rgba(0,0,0,.06);border-radius:4px;padding:4px 8px;margin-top:4px;word-break:break-all;width:100%}
+.sync-dot{width:8px;height:8px;border-radius:50%;background:#4caf50;display:inline-block;margin-right:4px;vertical-align:middle}
+.sync-dot.syncing{background:#ff9800;animation:pulse .8s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+@media(max-width:600px){.topbar{height:auto;padding:.75rem 1rem}.search-box input{width:140px}.container{padding:1rem .75rem}.g2{grid-template-columns:1fr}.api-provider-tabs{flex-direction:column}}
+</style>
+</head>
+<body>
+<div class="pw-screen" id="pw-screen">
+  <div class="pw-box">
+    <img src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAASABIAAD/4QCMRXhpZgAATU0AKgAAAAgABQESAAMAAAABAAEAAAEaAAUAAAABAAAASgEbAAUAAAABAAAAUgEoAAMAAAABAAIAAIdpAAQAAAABAAAAWgAAAAAAAABIAAAAAQAAAEgAAAABAAOgAQADAAAAAQABAACgAgAEAAAAAQAAAUCgAwAEAAAAAQAAAGsAAAAA/+0AOFBob3Rvc2hvcCAzLjAAOEJJTQQEAAAAAAAAOEJJTQQlAAAAAAAQ1B2M2Y8AsgTpgAmY7PhCfv/AABEIAGsBQAMBIgACEQEDEQH/xAAfAAABBQEBAQEBAQAAAAAAAAAAAQIDBAUGBwgJCgv/xAC1EAACAQMDAgQDBQUEBAAAAX0BAgMABBEFEiExQQYTUWEHInEUMoGRoQgjQrHBFVLR8CQzYnKCCQoWFxgZGiUmJygpKjQ1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4eLj5OXm5+jp6vHy8/T19vf4+fr/xAAfAQADAQEBAQEBAQEBAAAAAAAAAQIDBAUGBwgJCgv/xAC1EQACAQIEBAMEBwUEBAABAncAAQIDEQQFITEGEkFRB2FxEyIygQgUQpGhscEJIzNS8BVictEKFiQ04SXxFxgZGiYnKCkqNTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqCg4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2dri4+Tl5ufo6ery8/T19vf4+fr/2wBDAAICAgICAgQCAgQGBAQEBggGBgYGCAoICAgICAoMCgoKCgoKDAwMDAwMDAwODg4ODg4QEBAQEBISEhISEhISEhL/2wBDAQMDAwUEBQgEBAgTDQsNExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExP/3QAEABT/2gAMAwEAAhEDEQA/AP28ooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/0P28ooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/0f28ooooAKKK/Lv/AIKXftXP8HfAI+EXgm5MfiPxLCwmlRiHtbFsqzgr0eYgoh/hAZuGCGgD7/8A+Fw/CT/oadI/8Dbf/wCOV2mlavpWu2Eeq6JdRXtrNkpNA6yxttJBwyllPII49K/i50P4d+NvEnhPWPHOh6dLc6ToHk/2hcKMrB9oYrHu/i+Yg9M7f4sV+nX/AATB/avPw+8Xr8AvHN0V0XXZc6bLIRstb0/8s8seEn6d/wB5t4+ZzQB/Q7RRX5p/tAf8FKfBPwA+LmrfCTVvDN7qNxpP2ffcQzRpG/n28c4wGG4bRKB9RQB+llFfE/hr9vD4LXnwHtPjz44lbw9ZX89xb29nKwmupnt2KkRJH8z9Bz90ZG4jNfG+uf8ABZHwdb3RTw34GvLuDPDXN7HAxH+6sUy/+PUAftBRX5ofAr/gqD8Ffi74ptfBXiaxuvC1/essdvJcuktq8hOBGZl2spYkbS6BPccZ+if2hf2xvgh+zXGtr46v2udVkXdHpliBLdMvZmDFVjX+6XdN2DtzigD6mor8VZv+Cynhtb3ZbeAblrbJ+dtQRZMeuxYGX/x+vtf9mP8Abp+D/wC05fSeGdEE+ja9Ehk/s+9KZlQAbmhdTtkC5+YfK+0Ftu0ZoA+06K8U+N/7Qnwp/Z48Nr4m+J+pLaLMWW3t0UyT3DqMlY41+Y/7TnCLkbmGRX5k61/wWR8HwXRTw74FvLqHPDXF7HbsR/urFMv/AI9QB+0NFfkr8O/+CuvwZ8R6rHpvj/Qr/wAOxytt+0oy3kKe77QkgH+5G/0r1j9oP/go18NPgTr+j6VaaXP4ktNc0qLVra9sZ4xE0U0ssQA3d8xk/jt+8DQB93+MPFeh+BPCuo+NfE8pt9O0m2lu7mVVZykUKlnbaoZjtAPAUmvkjwx/wUP/AGTvGPiTT/CWgeIpZr/VLiK0t42sbtQ0sziNF3NEqjc5AyTtry9/2p9B/ar/AGO/ir4n0HSZ9Jj0vSb+1dLiRZGYmzaTcCvQc4r8AP2bv+ThvAn/AGMGm/8ApVHQB/ZDRXj3xq+PPww/Z98K/wDCXfFDUVsrd2KQRKpknuJACdkMa/MTx1OEXI3EV+YWv/8ABY/wXbXTp4W8D3t5AD8r3d5HauR7rHFOo/77NAH7PUV+R3gH/gr38H9d1OGw8feHdQ0COVwhuIpEvIogf4nCiOTC/wCwjn/ZNe3ftAf8FDfhj8EIfDuo6XYy+KNP8S2bXtrdWMyCMIjBcEMNwPPzA4IOQwDCgD9A6K+A/hZ+3dYfF/4QeLPiz4N8I3848JNGZ7ETRmeaNwWd49o2kxqC7IeSAdvzYB8b8Af8FaPhL4x8a6X4U1bw/e6Nb6jcJbtezzwmKAyHaHl+7hFJG47vlGW7UAfrBRQCpAZTkHuK/Pn9pj/goj8M/wBm/wCII+G1zpd1rmoxQJNd/ZpI41tzJykbFursuHYbflDL1zwAfoNRXyF+zx+1vo3x28Aat8VdT0WXwp4b0ptn9oalcRiOUr/rSp+VdsfyhnLY3NhcsDj5o+IP/BWz4B+GdQl03wRpmpeIxGOLhVW1gc/7JlPm/iYh/s5oA/VSivxIf/gsvpglAT4eymP+8dTUH8vsn/s1eheDf+Cv/wAH9WvorXxp4a1LRo5H2vNC8d3HGOzMP3bkf3tiFv7oNAH664K8U+N/7Qnwp/Z48Nr4m+J+pLaLMWW3t0UyT3DqMlY41+Y/7TnCLkbmGRX5ga//AMFj/BdtdOnhbwPe3kAPyvd3kdq5HuscU6j/AL7NfInxW/4KCfF74pafJpekW9r4WtJMo7WzPLO6dCplba6g/wCzGpHY0AftJ4e/4KG/sneL/FOneFNE8QyvdarcRWlujWN2oMszhEBYxBVDMQMk4r6c+IPxC8GfCzwleePPiDqEWlaLZqpl1CX7sSMcAlhg7cmviv8AZq/YW+EfgT4TaJN8XNBttZ8WX1tFPqq3nmFobiRC3kBUcJiPIUgo2W3ncDgD8jP2wfhz8Rvgp8b73wx4t1q91LRLyI3OjPJIyxJbOcGOEAnb5L7kO3ADKxHXJAP6g/Cvij/AITzw7YeLPD8/n2GrQRzwkOHUo+eCVYqQRyCpIODWV4i+GXhzxv4Nm8F+NIJNS0u7Kbop7h32bHDpsZiWXBGeD1AOcgkV+Xf/BIr4j6t4h8DeKvhxq1089tocyXFgHPMVvcbhIinuFkBOBxiQfxdP0G/aO/bA+FP7N+lxyeJZG1LXrpS1jo1qC8r9QXcj5Y0z/ER7LkjIA3+G37TXw7vfDf7Tuj/sZaHpl3FY63JbyajqFw8h4kNrCYoEjICBzI5bzPmOFwFOCf6C6/jj+LiSSfHbXdRtoZJ7qbW5ZoooY2klkk80HCqoLMSTjAGc9Bn0/rO/YZ/aK0z9oL4Mx3s1wqeIPD+2w1eHIVhKBhJQOyCQFl/usGX+GgD7Rooor8lP2YCiiigD/0v28ooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAr5p/ah+AOt/tH+A4/h1aeJ5fDmnSSiS8EFuJmuQmGSNi0qYRT87DncQvTHP0tRQB+b37M3/BN3wB+zx8R0+Jt9rMviK+tI2WyWaAQR28jja0uFd9zbCUXPC7i33sEfpDRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQB/9T9vKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD/9X9vKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD/9k=" alt="Amalayon" style="height:48px;margin-bottom:16px;display:block;margin-left:auto;margin-right:auto;">
+    <h2>Material Inventory</h2>
+    <p>Enter admin password to manage,<br>or click "View Only" to browse.</p>
+    <input type="password" id="pw-input" placeholder="Password" onkeydown="if(event.key==='Enter')tryLogin()">
+    <div class="pw-err" id="pw-err">Incorrect password</div>
+    <button class="btn primary" style="width:100%;justify-content:center;margin-bottom:10px;font-size:14px" onclick="tryLogin()"><i class="ti ti-lock-open"></i> Login as Admin</button>
+    <button class="btn" style="width:100%;justify-content:center;font-size:14px" onclick="enterViewer()"><i class="ti ti-eye"></i> View Only</button>
+    <div style="margin-top:16px;font-size:11px;color:#bbb">Default password: <code>admin123</code></div>
+  </div>
+</div>
+<div class="topbar">
+  <div class="topbar-title"><i class="ti ti-package" style="font-size:22px"></i>Material Inventory Manager</div>
+  <div class="topbar-right">
+    <div class="seg" id="lang-seg">
+      <button class="seg-btn" onclick="setLang('zh')">中文</button>
+      <button class="seg-btn active" onclick="setLang('en')">EN</button>
+      <button class="seg-btn" onclick="setLang('es')">ES</button>
+    </div>
+    <span id="sync-indicator" style="font-size:11px;color:#a0b4d0;display:none"><span class="sync-dot" id="sync-dot"></span><span id="sync-text">已連線</span></span>
+    <button class="btn" id="btn-settings" onclick="toggleSettings()" style="padding:5px 12px;font-size:12px"><i class="ti ti-settings"></i> AI Setup</button>
+    <span class="mode-badge admin" id="mode-badge">Admin</span>
+    <button class="btn" onclick="logout()" style="padding:5px 12px;font-size:12px"><i class="ti ti-logout"></i> <span id="t-logout">Logout</span></button>
+  </div>
+</div>
+<div class="container">
+  <div class="settings-panel" id="settings-panel">
+    <h3><i class="ti ti-robot" style="font-size:18px;color:#1a73e8"></i> AI Invoice Recognition — Setup</h3>
+    <p style="font-size:13px;color:#666;margin-bottom:14px">Choose an AI provider and paste your API key. Keys are saved locally on your device only.</p>
+    <div class="api-provider-tabs">
+      <div class="provider-btn" id="prov-gemini" onclick="selectProvider('gemini')">
+        <div style="font-size:26px;margin-bottom:4px">🟦</div>
+        <span>Google Gemini</span><small style="color:#1a7a3c;font-weight:600">✓ Free tier available</small>
+      </div>
+      <div class="provider-btn active" id="prov-anthropic" onclick="selectProvider('anthropic')">
+        <div style="font-size:26px;margin-bottom:4px">🟧</div>
+        <span>Anthropic Claude</span><small>Paid — $5 credit to start</small>
+      </div>
+    </div>
+    <div id="gemini-info" class="info-box" style="margin-bottom:10px;display:none">
+      <strong>Get a free Gemini API key:</strong><br>
+      1. Go to <a href="https://aistudio.google.com/app/apikey" target="_blank">aistudio.google.com/app/apikey</a><br>
+      2. Sign in with Google → click <strong>Create API Key</strong><br>
+      3. Copy the key (starts with <code>AIza</code>) and paste below.<br>
+      Free tier: <strong>1,500 requests/day</strong>, no credit card needed.
+    </div>
+    <div id="anthropic-info" class="info-box" style="margin-bottom:10px">
+      <strong>Get an Anthropic API key:</strong><br>
+      1. Go to <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a><br>
+      2. Sign up → API Keys → Create key (starts with <code>sk-ant-</code>)<br>
+      3. New accounts get $5 free credit.
+    </div>
+    <label style="font-size:12px;color:#666;font-weight:500;display:block;margin-bottom:6px">API Key</label>
+    <div class="api-key-row">
+      <input type="password" id="api-key-input" placeholder="Paste your API key here...">
+      <button class="btn primary" onclick="saveApiKey()"><i class="ti ti-device-floppy"></i> Save</button>
+      <button class="btn" onclick="toggleKeyVis()" title="Show/hide"><i class="ti ti-eye" id="eye-icon"></i></button>
+    </div>
+    <div class="key-saved" id="key-saved"><i class="ti ti-circle-check"></i> <span id="key-saved-text">Key saved! AI invoice recognition is ready.</span></div>
+    <p style="margin-top:10px;font-size:11px;color:#bbb">Your key is stored only in this browser's localStorage and never sent anywhere except the AI provider's API.</p>
+  </div>
+  <div class="stats" id="stats"></div>
+  <div class="card">
+    <div class="card-header">
+      <div class="tabs">
+        <button class="tab active" id="tab-inv" onclick="switchTab('inventory',this)"><i class="ti ti-clipboard-list" style="font-size:13px;vertical-align:-2px;margin-right:4px"></i><span id="t-tab-inv"></span></button>
+        <button class="tab" id="tab-log" onclick="switchTab('log',this)"><i class="ti ti-history" style="font-size:13px;vertical-align:-2px;margin-right:4px"></i><span id="t-tab-log"></span></button>
+      </div>
+      <div class="toolbar" id="main-toolbar">
+        <div class="search-box"><i class="ti ti-search"></i><input type="text" id="search" oninput="renderInventory()"></div>
+        <button class="btn ai" id="btn-invoice" onclick="openInvoice()"><i class="ti ti-file-invoice"></i><span id="t-upload-btn"></span></button>
+        <button class="btn primary" id="btn-add" onclick="openAdd()"><i class="ti ti-plus"></i><span id="t-add-btn"></span></button>
+        <button class="btn success" onclick="exportExcel()"><i class="ti ti-table-export"></i><span id="t-export-btn"></span></button>
+      </div>
+      <div class="toolbar" id="log-toolbar" style="display:none">
+        <div class="search-box"><i class="ti ti-search"></i><input type="text" id="log-search" oninput="renderLog()" style="width:190px"></div>
+        <select id="log-type-filter" onchange="renderLog()" style="font-size:13px;padding:7px 10px;border-radius:8px;border:1px solid #dde3f0;background:#fff;color:#333;outline:none"></select>
+        <button class="btn success" onclick="exportExcel()"><i class="ti ti-table-export"></i><span id="t-export-btn2"></span></button>
+      </div>
+    </div>
+    <div class="section active" id="sec-inventory">
+      <div style="overflow-x:auto">
+        <table><thead><tr id="inv-thead"></tr></thead><tbody id="tbody-inv"></tbody></table>
+        <div class="empty" id="empty-inv" style="display:none"><i class="ti ti-inbox"></i><span id="t-empty-inv"></span></div>
+      </div>
+    </div>
+    <div class="section" id="sec-log">
+      <div style="overflow-x:auto">
+        <table><thead><tr id="log-thead"></tr></thead><tbody id="tbody-log"></tbody></table>
+        <div class="empty" id="empty-log" style="display:none"><i class="ti ti-history"></i><span id="t-empty-log"></span></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal-overlay" id="modal-overlay" style="display:none" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modal-box"></div>
+</div>
+<script>
+const ADMIN_PW_DEFAULT='admin123';
+let mode='viewer',lang='en',currentTab='inventory';
+let parsedItems=[],editId=null,aiProvider='anthropic';
+let nextMatId=6,nextLogId=4;
+
+const I18N={
+zh:{logout:'登出',admin:'管理員',viewer:'訪客',tabInv:'庫存總覽',tabLog:'出入記錄',uploadBtn:'上傳發票',addBtn:'新增材料',exportBtn:'匯出 Excel',searchPH:'搜尋材料/型號...',logSPH:'搜尋材料/備註...',s1:'材料種類',s2:'庫存偏低',s3:'缺貨',s4:'出入記錄',s5:'庫存總值',c1:'材料名稱',c2:'型號/規格',c3:'單位',c4:'庫存',c5:'安全庫存',c6:'單價(USD)',c7:'庫存值(USD)',c8:'狀態',c9:'操作',l1:'時間',l2:'材料名稱',l3:'類型',l4:'數量變化',l5:'操作後庫存',l6:'備註',ok:'正常',low:'偏低',out:'缺貨',tIn:'入庫',tOut:'出庫',tAdj:'調整',tInv:'發票入庫',allT:'全部類型',eInv:'暫無材料',eLog:'暫無記錄',mAdd:'新增材料',mEdit:'編輯材料',fN:'材料名稱 *',fMo:'型號/規格',fU:'單位',fP:'單價(USD)',fQ:'初始庫存',fS:'安全庫存',fNo:'備註',fNoH:'可選',fNH:'例：不鏽鋼螺絲',fMH:'例：M6×20mm',eN:'庫存請用入/出庫調整',can:'取消',sav:'儲存',mIn:'入庫',mOut:'出庫',cQ:'目前庫存：',qIn:'入庫數量 *',qOut:'出庫數量 *',mN:'備註',mNP:'例：供應商、用途...',cIn:'確認入庫',cOut:'確認出庫',iT:'AI 發票辨識入庫',iD:'點擊或拖曳發票圖片/PDF',iS:'JPG · PNG · PDF',aiL:'AI 正在辨識發票…',aiD:'辨識完成，找到',aiDU:'項材料',aiNK:'尚未設定 API Key，請點右上角 AI Setup',aiE:'辨識失敗，錯誤詳情：',pN:'確認後入庫，可直接修改：',iB:'確認入庫',cl:'關閉',ok1:'入庫完成！新增',ok2:'項材料，更新庫存',ok3:'項',dC:'確定刪除此材料？',iNo:'初始庫存建立',invNo:'發票辨識入庫',dNo:'材料刪除',oE:'出庫數量超過庫存！',qE:'請輸入正確數量',nE:'請輸入材料名稱',eI:'庫存總覽',eLo:'出入記錄',eF:'材料庫存'},
+en:{logout:'Logout',admin:'Admin',viewer:'Viewer',tabInv:'Inventory',tabLog:'Movement Log',uploadBtn:'Upload Invoice',addBtn:'Add Material',exportBtn:'Export Excel',searchPH:'Search name / model...',logSPH:'Search material / note...',s1:'Materials',s2:'Low Stock',s3:'Out of Stock',s4:'Log Entries',s5:'Total Value',c1:'Material Name',c2:'Model / Spec',c3:'Unit',c4:'Qty in Stock',c5:'Safety Stock',c6:'Unit Price (USD)',c7:'Stock Value (USD)',c8:'Status',c9:'Actions',l1:'Time',l2:'Material',l3:'Type',l4:'Change',l5:'Stock After',l6:'Note',ok:'OK',low:'Low',out:'Out of Stock',tIn:'Stock In',tOut:'Stock Out',tAdj:'Adjustment',tInv:'Invoice In',allT:'All Types',eInv:'No materials found',eLog:'No records yet',mAdd:'Add Material',mEdit:'Edit Material',fN:'Material Name *',fMo:'Model / Spec',fU:'Unit',fP:'Unit Price (USD)',fQ:'Initial Stock',fS:'Safety Stock',fNo:'Note',fNoH:'Optional',fNH:'e.g. Stainless Bolt M6',fMH:'e.g. M6×20mm',eN:'Adjust stock via In/Out buttons',can:'Cancel',sav:'Save',mIn:'Stock In',mOut:'Stock Out',cQ:'Current stock: ',qIn:'Qty to receive *',qOut:'Qty to issue *',mN:'Note',mNP:'e.g. Supplier, PO number...',cIn:'Confirm Stock In',cOut:'Confirm Stock Out',iT:'AI Invoice Recognition',iD:'Click or drag invoice image / PDF',iS:'JPG · PNG · PDF',aiL:'AI is reading the invoice…',aiD:'Done! Found',aiDU:'items',aiNK:'No API key set — click "AI Setup" in the top bar.',aiE:'Recognition failed. Error: ',pN:'Review and edit before importing:',iB:'Import to Stock',cl:'Close',ok1:'Done! Added',ok2:'new material(s), updated',ok3:'item(s)',dC:'Delete this material? Cannot be undone.',iNo:'Initial stock',invNo:'Invoice import',dNo:'Material deleted',oE:'Issue qty exceeds current stock!',qE:'Please enter a valid quantity',nE:'Please enter a material name',eI:'Inventory',eLo:'Movement Log',eF:'MaterialInventory'},
+es:{logout:'Salir',admin:'Admin',viewer:'Visor',tabInv:'Inventario',tabLog:'Movimientos',uploadBtn:'Subir Factura',addBtn:'Agregar Material',exportBtn:'Exportar Excel',searchPH:'Buscar nombre/modelo...',logSPH:'Buscar material/nota...',s1:'Materiales',s2:'Stock Bajo',s3:'Sin Stock',s4:'Movimientos',s5:'Valor Total',c1:'Material',c2:'Modelo/Especificación',c3:'Unidad',c4:'Cantidad',c5:'Stock Mínimo',c6:'Precio(USD)',c7:'Valor(USD)',c8:'Estado',c9:'Acciones',l1:'Fecha/Hora',l2:'Material',l3:'Tipo',l4:'Cambio',l5:'Stock Final',l6:'Nota',ok:'Normal',low:'Bajo',out:'Agotado',tIn:'Entrada',tOut:'Salida',tAdj:'Ajuste',tInv:'Entrada Factura',allT:'Todos los tipos',eInv:'Sin materiales',eLog:'Sin registros',mAdd:'Agregar Material',mEdit:'Editar Material',fN:'Nombre *',fMo:'Modelo/Especificación',fU:'Unidad',fP:'Precio(USD)',fQ:'Stock Inicial',fS:'Stock Mínimo',fNo:'Nota',fNoH:'Opcional',fNH:'Ej.: Perno M6',fMH:'Ej.: M6×20mm',eN:'Ajustar con botones entrada/salida',can:'Cancelar',sav:'Guardar',mIn:'Entrada',mOut:'Salida',cQ:'Stock actual: ',qIn:'Cantidad a ingresar *',qOut:'Cantidad a retirar *',mN:'Nota',mNP:'Ej.: Proveedor, N° pedido...',cIn:'Confirmar Entrada',cOut:'Confirmar Salida',iT:'Reconocimiento de Factura IA',iD:'Haz clic o arrastra la factura/PDF',iS:'JPG · PNG · PDF',aiL:'La IA está leyendo la factura…',aiD:'¡Listo! Se encontraron',aiDU:'materiales',aiNK:'Sin clave API — haz clic en "AI Setup".',aiE:'Error de reconocimiento: ',pN:'Revise antes de importar:',iB:'Importar al inventario',cl:'Cerrar',ok1:'¡Listo! Se añadieron',ok2:'material(es) y se actualizó',ok3:'artículo(s)',dC:'¿Eliminar este material?',iNo:'Stock inicial',invNo:'Importación factura',dNo:'Material eliminado',oE:'La cantidad supera el stock!',qE:'Ingrese una cantidad válida',nE:'Ingrese el nombre del material',eI:'Inventario',eLo:'Movimientos',eF:'InventarioMateriales'}
+};
+const t=()=>I18N[lang];
+const USD=n=>'$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+// ── Firebase 設定 ──
+const firebaseConfig = {
+  apiKey: "AIzaSyArS6Thc5gwjO_VXtTgi-8S4ta9jn6QOS0",
+  authDomain: "material-inventory-436c7.firebaseapp.com",
+  databaseURL: "https://material-inventory-436c7-default-rtdb.firebaseio.com",
+  projectId: "material-inventory-436c7",
+  storageBucket: "material-inventory-436c7.firebasestorage.app",
+  messagingSenderId: "944701757410",
+  appId: "1:944701757410:web:a4b3c69b74b406b4ba8bbb",
+  measurementId: "G-YF1S45LNRX"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+function setSyncStatus(state){
+  const dot=document.getElementById('sync-dot');
+  const txt=document.getElementById('sync-text');
+  const ind=document.getElementById('sync-indicator');
+  if(!dot)return;
+  ind.style.display='inline-flex';
+  if(state==='syncing'){dot.className='sync-dot syncing';txt.textContent='同步中...';}
+  else{dot.className='sync-dot';txt.textContent='已連線';}
+}
+
+function saveData(){
+  setSyncStatus('syncing');
+  db.ref('/inventory').set({
+    materials: JSON.stringify(materials),
+    logs: JSON.stringify(logs),
+    nextMatId: nextMatId,
+    nextLogId: nextLogId
+  }).then(()=>setSyncStatus('ok')).catch(e=>console.error('Firebase save error:',e));
+}
+
+function initFirebase(){
+  db.ref('/inventory').on('value',(snapshot)=>{
+    const data=snapshot.val();
+    if(!data||!data.materials){
+      // 第一次使用：把範例資料存入 Firebase
+      saveData();
+      return;
+    }
+    try{
+      const m=JSON.parse(data.materials);
+      const l=JSON.parse(data.logs||'[]');
+      if(Array.isArray(m)){materials=m;nextMatId=data.nextMatId||nextMatId;}
+      if(Array.isArray(l)){logs=l;nextLogId=data.nextLogId||nextLogId;}
+    }catch(e){console.error('Firebase parse error:',e);}
+    setSyncStatus('ok');
+    renderAll();
+  },(error)=>{
+    console.error('Firebase connection error:',error);
+  });
+}
+
+function getAdminPw(){return localStorage.getItem('mat_pw')||ADMIN_PW_DEFAULT;}
+function getApiKey(p){return localStorage.getItem('mat_key_'+(p||aiProvider))||'';}
+function getSavedProvider(){return localStorage.getItem('mat_provider')||'anthropic';}
+
+let materials=[
+  {id:1,name:'Stainless Steel Bolt M6',model:'M6×20mm',unit:'pcs',qty:1250,safe:200,price:0.45},
+  {id:2,name:'Aluminum Alloy Sheet',model:'6061-T6 2mm',unit:'pcs',qty:18,safe:20,price:85.00},
+  {id:3,name:'Rubber O-Ring',model:'OR-15×2',unit:'pcs',qty:320,safe:100,price:1.20},
+  {id:4,name:'Cable 2.5mm²',model:'RVV-3×2.5',unit:'m',qty:0,safe:50,price:4.80},
+  {id:5,name:'Bearing 6204',model:'6204-2RS',unit:'pcs',qty:45,safe:30,price:22.50},
+];
+let logs=[
+  {id:1,time:'2025-06-01 09:12',name:'Stainless Steel Bolt M6',type:'tIn',delta:500,after:1250,note:'Initial purchase'},
+  {id:2,time:'2025-06-05 14:30',name:'Bearing 6204',type:'tOut',delta:-15,after:45,note:'Production line'},
+  {id:3,time:'2025-06-10 10:00',name:'Aluminum Alloy Sheet',type:'tOut',delta:-5,after:18,note:'Sample fabrication'},
+];
+
+function tryLogin(){const v=document.getElementById('pw-input').value;if(v===getAdminPw()){mode='admin';document.getElementById('pw-screen').style.display='none';document.getElementById('mode-badge').textContent=t().admin;document.getElementById('mode-badge').className='mode-badge admin';applyMode();renderAll();}else{document.getElementById('pw-err').style.display='block';document.getElementById('pw-input').value='';}}
+function enterViewer(){mode='viewer';document.getElementById('pw-screen').style.display='none';document.getElementById('mode-badge').textContent=t().viewer;document.getElementById('mode-badge').className='mode-badge viewer';applyMode();renderAll();}
+function logout(){mode='viewer';document.getElementById('pw-input').value='';document.getElementById('pw-err').style.display='none';document.getElementById('pw-screen').style.display='flex';document.getElementById('settings-panel').style.display='none';}
+function applyMode(){const a=mode==='admin';['btn-invoice','btn-add','btn-settings'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display=a?'':'none';});}
+
+function toggleSettings(){const p=document.getElementById('settings-panel');p.style.display=p.style.display==='none'||!p.style.display?'block':'none';if(p.style.display==='block'){aiProvider=getSavedProvider();selectProvider(aiProvider,true);}}
+function selectProvider(prov,noSave){
+  aiProvider=prov;
+  if(!noSave)localStorage.setItem('mat_provider',prov);
+  document.getElementById('prov-gemini').classList.toggle('active',prov==='gemini');
+  document.getElementById('prov-anthropic').classList.toggle('active',prov==='anthropic');
+  document.getElementById('gemini-info').style.display=prov==='gemini'?'block':'none';
+  document.getElementById('anthropic-info').style.display=prov==='anthropic'?'block':'none';
+  const key=getApiKey(prov);
+  document.getElementById('api-key-input').value=key?'••••••••••••••••••••':'';
+  document.getElementById('api-key-input').placeholder=prov==='gemini'?'AIza...':'sk-ant-api03-...';
+  const ks=document.getElementById('key-saved');
+  ks.style.display=key?'flex':'none';
+}
+function saveApiKey(){
+  const val=document.getElementById('api-key-input').value.trim();
+  if(!val||val.startsWith('•')){alert('Please paste a new API key.');return;}
+  localStorage.setItem('mat_key_'+aiProvider,val);
+  localStorage.setItem('mat_provider',aiProvider);
+  document.getElementById('api-key-input').value='';
+  selectProvider(aiProvider,true);
+}
+function toggleKeyVis(){const i=document.getElementById('api-key-input'),ic=document.getElementById('eye-icon');i.type=i.type==='password'?'text':'password';ic.className=i.type==='password'?'ti ti-eye':'ti ti-eye-off';}
+
+function setLang(l){lang=l;document.querySelectorAll('#lang-seg .seg-btn').forEach((b,i)=>b.classList.toggle('active',['zh','en','es'][i]===l));applyStrings();renderAll();}
+function applyStrings(){
+  const L=t();
+  document.getElementById('t-logout').textContent=L.logout;
+  document.getElementById('t-tab-inv').textContent=L.tabInv;
+  document.getElementById('t-tab-log').textContent=L.tabLog;
+  document.getElementById('t-upload-btn').textContent=L.uploadBtn;
+  document.getElementById('t-add-btn').textContent=L.addBtn;
+  document.getElementById('t-export-btn').textContent=L.exportBtn;
+  document.getElementById('t-export-btn2').textContent=L.exportBtn;
+  document.getElementById('search').placeholder=L.searchPH;
+  document.getElementById('log-search').placeholder=L.logSPH;
+  document.getElementById('t-empty-inv').textContent=L.eInv;
+  document.getElementById('t-empty-log').textContent=L.eLog;
+  document.getElementById('mode-badge').textContent=mode==='admin'?L.admin:L.viewer;
+  document.getElementById('log-type-filter').innerHTML=`<option value="">${L.allT}</option><option value="tIn">${L.tIn}</option><option value="tOut">${L.tOut}</option><option value="tAdj">${L.tAdj}</option><option value="tInv">${L.tInv}</option>`;
+  document.getElementById('inv-thead').innerHTML=[L.c1,L.c2,L.c3,L.c4,L.c5,L.c6,L.c7,L.c8,L.c9].map((h,i)=>`<th style="${i===8&&mode!=='admin'?'display:none':''}">${h}</th>`).join('');
+  document.getElementById('log-thead').innerHTML=[L.l1,L.l2,L.l3,L.l4,L.l5,L.l6].map(h=>`<th>${h}</th>`).join('');
+}
+
+function switchTab(name,btn){currentTab=name;document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));document.getElementById('sec-'+name).classList.add('active');document.getElementById('main-toolbar').style.display=name==='inventory'?'flex':'none';document.getElementById('log-toolbar').style.display=name==='log'?'flex':'none';if(name==='log')renderLog();}
+
+function renderStats(){const L=t(),tot=materials.length,out=materials.filter(d=>d.qty===0).length,low=materials.filter(d=>d.qty>0&&d.qty<d.safe).length,val=materials.reduce((s,d)=>s+d.qty*d.price,0);document.getElementById('stats').innerHTML=`<div class="stat"><div class="stat-label">${L.s1}</div><div class="stat-val">${tot}</div></div><div class="stat"><div class="stat-label">${L.s2}</div><div class="stat-val warn">${low}</div></div><div class="stat"><div class="stat-label">${L.s3}</div><div class="stat-val danger">${out}</div></div><div class="stat"><div class="stat-label">${L.s4}</div><div class="stat-val info">${logs.length}</div></div><div class="stat"><div class="stat-label">${L.s5}</div><div class="stat-val">$${Math.round(val).toLocaleString('en-US')}</div></div>`;}
+
+function getSt(d){if(d.qty===0)return{cls:'out',k:'out'};if(d.qty<d.safe)return{cls:'low',k:'low'};return{cls:'ok',k:'ok'};}
+function renderInventory(){const L=t(),q=document.getElementById('search').value.toLowerCase();const rows=materials.filter(d=>!q||d.name.toLowerCase().includes(q)||d.model.toLowerCase().includes(q));document.getElementById('empty-inv').style.display=rows.length?'none':'block';document.getElementById('tbody-inv').innerHTML=rows.map(d=>{const st=getSt(d);const acts=mode==='admin'?`<button class="icon-btn blue" onclick="openMov(${d.id},'in')" title="${L.mIn}"><i class="ti ti-arrow-bar-to-down"></i></button><button class="icon-btn orange" onclick="openMov(${d.id},'out')" title="${L.mOut}"><i class="ti ti-arrow-bar-up"></i></button><button class="icon-btn" onclick="openEdit(${d.id})"><i class="ti ti-edit"></i></button><button class="icon-btn red" onclick="del(${d.id})"><i class="ti ti-trash"></i></button>`:'';return`<tr><td style="font-weight:600">${d.name}</td><td style="color:#888;font-size:12px">${d.model}</td><td style="text-align:center">${d.unit}</td><td style="text-align:center;font-weight:600">${d.qty.toLocaleString()}</td><td style="text-align:center;color:#888">${d.safe.toLocaleString()}</td><td style="text-align:right">${USD(d.price)}</td><td style="text-align:right">${USD(d.qty*d.price)}</td><td><span class="badge ${st.cls}">${L[st.k]}</span></td><td style="${mode!=='admin'?'display:none':''}"><div class="actions">${acts}</div></td></tr>`;}).join('');renderStats();}
+
+function tLabel(k){return t()[k]||k;}
+function tCls(k){return{tIn:'type-in',tOut:'type-out',tAdj:'type-adj',tInv:'type-inv'}[k]||'type-adj';}
+function addLog(name,typeKey,delta,after,note=''){logs.unshift({id:nextLogId++,time:new Date().toLocaleString('sv').replace('T',' ').slice(0,16),name,type:typeKey,delta,after,note});saveData();}
+function renderLog(){const L=t(),q=document.getElementById('log-search').value.toLowerCase(),tf=document.getElementById('log-type-filter').value;const rows=logs.filter(l=>(!q||l.name.toLowerCase().includes(q)||(l.note||'').toLowerCase().includes(q))&&(!tf||l.type===tf));document.getElementById('empty-log').style.display=rows.length?'none':'block';document.getElementById('tbody-log').innerHTML=rows.map(l=>`<tr><td style="font-size:12px;color:#888;white-space:nowrap">${l.time}</td><td style="font-weight:600">${l.name}</td><td><span class="badge ${tCls(l.type)}">${tLabel(l.type)}</span></td><td style="text-align:center;font-weight:600;color:${l.delta>0?'#1a7a3c':'#c0392b'}">${l.delta>0?'+':''}${l.delta.toLocaleString()}</td><td style="text-align:center">${l.after.toLocaleString()}</td><td style="font-size:12px;color:#888">${l.note||'—'}</td></tr>`).join('');}
+function renderAll(){applyStrings();renderInventory();if(currentTab==='log')renderLog();}
+
+function closeModal(){document.getElementById('modal-overlay').style.display='none';}
+function showModal(html){document.getElementById('modal-box').innerHTML=html;document.getElementById('modal-overlay').style.display='flex';}
+
+function openAdd(){editId=null;const L=t();showModal(`<h3>${L.mAdd}</h3><div class="field"><label>${L.fN}</label><input id="f-name" placeholder="${L.fNH}"></div><div class="field"><label>${L.fMo}</label><input id="f-model" placeholder="${L.fMH}"></div><div class="g2"><div class="field"><label>${L.fU}</label><input id="f-unit" value="pcs"></div><div class="field"><label>${L.fP}</label><input id="f-price" type="number" step="0.01" value="0"></div></div><div class="g2"><div class="field"><label>${L.fQ}</label><input id="f-qty" type="number" value="0"></div><div class="field"><label>${L.fS}</label><input id="f-safe" type="number" value="0"></div></div><div class="field"><label>${L.fNo}</label><textarea id="f-note" placeholder="${L.fNoH}"></textarea></div><div class="modal-btns"><button class="btn" onclick="closeModal()">${L.can}</button><button class="btn primary" onclick="saveForm()">${L.sav}</button></div>`);}
+function openEdit(id){editId=id;const L=t();const d=materials.find(m=>m.id===id);showModal(`<h3>${L.mEdit}</h3><div class="field"><label>${L.fN}</label><input id="f-name" value="${d.name}"></div><div class="field"><label>${L.fMo}</label><input id="f-model" value="${d.model}"></div><div class="g2"><div class="field"><label>${L.fU}</label><input id="f-unit" value="${d.unit}"></div><div class="field"><label>${L.fP}</label><input id="f-price" type="number" step="0.01" value="${d.price}"></div></div><div class="g2"><div class="field"><label>${L.fS}</label><input id="f-safe" type="number" value="${d.safe}"></div><div class="field"><label></label><p style="padding-top:26px;font-size:12px;color:#aaa">${L.eN}</p></div></div><div class="modal-btns"><button class="btn" onclick="closeModal()">${L.can}</button><button class="btn primary" onclick="saveForm()">${L.sav}</button></div>`);}
+function saveForm(){const L=t();const name=document.getElementById('f-name').value.trim();if(!name){alert(L.nE);return;}if(editId){const d=materials.find(m=>m.id===editId);d.name=name;d.model=document.getElementById('f-model').value.trim();d.unit=document.getElementById('f-unit').value.trim()||'pcs';d.safe=parseInt(document.getElementById('f-safe').value)||0;d.price=parseFloat(document.getElementById('f-price').value)||0;saveData();}else{const qty=parseInt(document.getElementById('f-qty').value)||0;const note=(document.getElementById('f-note')?.value||'').trim();const obj={id:nextMatId++,name,model:document.getElementById('f-model').value.trim(),unit:document.getElementById('f-unit').value.trim()||'pcs',qty,safe:parseInt(document.getElementById('f-safe').value)||0,price:parseFloat(document.getElementById('f-price').value)||0};materials.push(obj);if(qty>0)addLog(name,'tIn',qty,qty,note||L.iNo);else saveData();}closeModal();renderAll();}
+function openMov(id,dir){const L=t();const d=materials.find(m=>m.id===id);const isIn=dir==='in';showModal(`<h3 style="color:${isIn?'#1F3864':'#c97a00'}">${isIn?'📥 '+L.mIn:'📤 '+L.mOut}: ${d.name}</h3><div style="background:#f5f7fd;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:13px">${L.cQ}<strong>${d.qty.toLocaleString()} ${d.unit}</strong></div><div class="field"><label>${isIn?L.qIn:L.qOut}</label><input id="m-qty" type="number" min="1" value="1"></div><div class="field"><label>${L.mN}</label><textarea id="m-note" placeholder="${L.mNP}"></textarea></div><div class="modal-btns"><button class="btn" onclick="closeModal()">${L.can}</button><button class="btn" style="${isIn?'background:#1F3864;color:#fff;border-color:#1F3864':'background:#fff3e0;color:#c97a00;border-color:#f0d090'}" onclick="saveMov(${id},'${dir}')">${isIn?L.cIn:L.cOut}</button></div>`);}
+function saveMov(id,dir){const L=t();const qty=parseInt(document.getElementById('m-qty').value)||0;if(qty<=0){alert(L.qE);return;}const d=materials.find(m=>m.id===id);const note=document.getElementById('m-note').value.trim();if(dir==='out'&&qty>d.qty){alert(L.oE);return;}const delta=dir==='in'?qty:-qty;d.qty+=delta;addLog(d.name,dir==='in'?'tIn':'tOut',delta,d.qty,note);closeModal();renderAll();}
+function del(id){const L=t();if(!confirm(L.dC))return;const d=materials.find(m=>m.id===id);materials=materials.filter(m=>m.id!==id);addLog(d.name,'tAdj',0,0,L.dNo);renderAll();}
+
+// ── AI Invoice ──
+function openInvoice(){
+  parsedItems=[];const L=t();
+  showModal(`<h3><i class="ti ti-file-invoice" style="color:#1a73e8;margin-right:6px;vertical-align:-2px"></i>${L.iT}</h3>
+    <div class="drop-area" id="drop" onclick="document.getElementById('file-inp').click()" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="handleDrop(event)">
+      <i class="ti ti-cloud-upload"></i><p>${L.iD}</p><p style="font-size:11px;margin-top:3px;color:#aaa">${L.iS}</p>
+    </div>
+    <input type="file" id="file-inp" accept="image/*,.pdf" style="display:none" onchange="handleFile(this.files[0])">
+    <div class="ai-status" id="ai-st"></div>
+    <div id="preview-items"></div>
+    <div class="modal-btns">
+      <button class="btn" onclick="closeModal()">${L.cl}</button>
+      <button class="btn ai" id="btn-import" style="display:none" onclick="importItems()"><i class="ti ti-check"></i>${L.iB}</button>
+    </div>`);
+}
+function handleDrop(e){e.preventDefault();document.getElementById('drop').classList.remove('drag');if(e.dataTransfer.files[0])handleFile(e.dataTransfer.files[0]);}
+
+async function callGemini(b64,mime){
+  const key=getApiKey('gemini');
+  const prompt=buildPrompt();
+  const part=mime==='application/pdf'
+    ?{inline_data:{mime_type:'application/pdf',data:b64}}
+    :{inline_data:{mime_type:mime,data:b64}};
+  const body={contents:[{parts:[{text:prompt},part]}],generationConfig:{temperature:0.1,maxOutputTokens:2048}};
+  const resp=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
+    {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d=await resp.json();
+  if(!resp.ok)throw new Error((d.error?.message||`HTTP ${resp.status}`));
+  const text=d.candidates?.[0]?.content?.parts?.[0]?.text;
+  if(!text)throw new Error('Empty response from Gemini');
+  return text;
+}
+
+async function callAnthropic(b64,mime){
+  const key=getApiKey('anthropic');
+  const prompt=buildPrompt();
+  const isImg=mime.startsWith('image/');
+  const content=isImg
+    ?[{type:'image',source:{type:'base64',media_type:mime,data:b64}},{type:'text',text:prompt}]
+    :[{type:'document',source:{type:'base64',media_type:'application/pdf',data:b64}},{type:'text',text:prompt}];
+  const resp=await fetch('https://api.anthropic.com/v1/messages',
+    {method:'POST',headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+    body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1000,messages:[{role:'user',content}]})});
+  const d=await resp.json();
+  if(!resp.ok)throw new Error(d.error?.message||`HTTP ${resp.status}`);
+  return d.content.map(c=>c.text||'').join('');
+}
+
+function buildPrompt(){
+  const lang_prompts={
+    en:'Extract all line items from this invoice. Return ONLY a valid JSON array, no markdown fences, no explanation. Each object: {"name":"item name","model":"model/spec or empty string","unit":"unit of measure or pcs","qty":quantity as integer,"price":unit price in USD as number or 0}. If you cannot read the document clearly, return an empty array [].',
+    zh:'從這張發票提取所有行項目。只回覆有效 JSON 陣列，不加 markdown 或說明。格式：[{"name":"材料名稱","model":"型號規格或空字串","unit":"單位或pcs","qty":數量整數,"price":美元單價數字或0}]。若無法辨識，回覆空陣列 []。',
+    es:'Extrae todos los artículos de esta factura. Devuelve SOLO un array JSON válido, sin markdown ni explicación. Cada objeto: {"name":"nombre del artículo","model":"modelo/especificación o cadena vacía","unit":"unidad o pcs","qty":cantidad como entero,"price":precio unitario en USD como número o 0}. Si no puedes leerlo, devuelve [].'
+  };
+  return lang_prompts[lang]||lang_prompts.en;
+}
+
+function handleFile(f){
+  if(!f)return;
+  const L=t();
+  const provider=getSavedProvider();
+  const key=getApiKey(provider);
+  document.getElementById('drop').innerHTML=`<i class="ti ti-file-check" style="color:#1a73e8"></i><p style="font-weight:600;font-size:13px">${f.name}</p><p style="font-size:11px;margin-top:3px;color:#aaa">${(f.size/1024).toFixed(1)} KB — ${provider==='gemini'?'Google Gemini':'Anthropic Claude'}</p>`;
+  const st=document.getElementById('ai-st');
+  if(!key){st.className='ai-status err';st.innerHTML=`<div><i class="ti ti-alert-circle"></i> ${L.aiNK}</div>`;st.style.display='flex';return;}
+  st.className='ai-status loading';st.innerHTML=`<span class="spin"><i class="ti ti-loader"></i></span> ${L.aiL}`;
+  parsedItems=[];document.getElementById('btn-import').style.display='none';document.getElementById('preview-items').innerHTML='';
+  const reader=new FileReader();
+  reader.onload=async(ev)=>{
+    const b64=ev.target.result.split(',')[1];
+    const mime=f.type||'application/pdf';
+    try{
+      let raw;
+      if(provider==='gemini')raw=await callGemini(b64,mime);
+      else raw=await callAnthropic(b64,mime);
+      const clean=raw.replace(/```json\s*/gi,'').replace(/```\s*/gi,'').trim();
+      const start=clean.indexOf('[');const end=clean.lastIndexOf(']');
+      if(start===-1||end===-1)throw new Error('No JSON array found in response: '+clean.slice(0,100));
+      parsedItems=JSON.parse(clean.slice(start,end+1));
+      if(!Array.isArray(parsedItems))throw new Error('Response is not an array');
+      st.className='ai-status done';st.innerHTML=`<i class="ti ti-circle-check"></i> ${L.aiD} ${parsedItems.length} ${L.aiDU}`;
+      renderPreview();
+    }catch(err){
+      console.error('AI Error:',err);
+      st.className='ai-status err';
+      st.innerHTML=`<div><i class="ti ti-alert-circle"></i> ${L.aiE}<br><span class="err-detail">${err.message}</span></div>`;
+    }
+  };
+  reader.readAsDataURL(f);
+}
+
+function renderPreview(){const L=t();if(!parsedItems.length)return;const trs=parsedItems.map((it,i)=>`<tr><td><input value="${(it.name||'').replace(/"/g,'&quot;')}" oninput="parsedItems[${i}].name=this.value"></td><td><input style="width:70px" value="${(it.model||'').replace(/"/g,'&quot;')}" oninput="parsedItems[${i}].model=this.value"></td><td><input style="width:42px" value="${it.unit||'pcs'}" oninput="parsedItems[${i}].unit=this.value"></td><td><input type="number" style="width:56px" value="${it.qty||0}" oninput="parsedItems[${i}].qty=parseInt(this.value)||0"></td><td><input type="number" step="0.01" style="width:64px" value="${(it.price||0).toFixed(2)}" oninput="parsedItems[${i}].price=parseFloat(this.value)||0"></td></tr>`).join('');document.getElementById('preview-items').innerHTML=`<p style="font-size:12px;color:#888;margin-bottom:8px">${L.pN}</p><div class="preview-tbl-wrap"><table><thead><tr><th>${L.c1}</th><th>${L.c2}</th><th>${L.c3}</th><th>${L.c4}</th><th>${L.c6}</th></tr></thead><tbody>${trs}</tbody></table></div>`;document.getElementById('btn-import').style.display='inline-flex';}
+function importItems(){const L=t();let added=0,updated=0;parsedItems.forEach(it=>{if(!it.name)return;const exist=materials.find(d=>d.name===it.name);if(exist){const delta=it.qty||0;exist.qty+=delta;if(it.price>0)exist.price=it.price;if(delta)addLog(it.name,'tInv',delta,exist.qty,L.invNo);updated++;}else{const obj={id:nextMatId++,name:it.name,model:it.model||'',unit:it.unit||'pcs',qty:it.qty||0,safe:0,price:it.price||0};materials.push(obj);if(obj.qty)addLog(obj.name,'tInv',obj.qty,obj.qty,L.invNo);added++;}});saveData();closeModal();renderAll();setTimeout(()=>alert(`${L.ok1} ${added} ${L.ok2} ${updated} ${L.ok3}`),80);}
+
+function exportExcel(){const L=t();try{const wb=XLSX.utils.book_new();const invH=[[L.c1,L.c2,L.c3,L.c4,L.c5,L.c6,L.c7,L.c8]];const invD=materials.map(d=>[d.name,d.model,d.unit,d.qty,d.safe,d.price,parseFloat((d.qty*d.price).toFixed(2)),t()[getSt(d).k]]);const ws1=XLSX.utils.aoa_to_sheet([...invH,...invD]);ws1['!cols']=[{wch:24},{wch:16},{wch:8},{wch:12},{wch:12},{wch:14},{wch:16},{wch:12}];XLSX.utils.book_append_sheet(wb,ws1,L.eI);const logH=[[L.l1,L.l2,L.l3,L.l4,L.l5,L.l6]];const logD=logs.map(l=>[l.time,l.name,tLabel(l.type),l.delta,l.after,l.note||'']);const ws2=XLSX.utils.aoa_to_sheet([...logH,...logD]);ws2['!cols']=[{wch:18},{wch:24},{wch:14},{wch:10},{wch:12},{wch:26}];XLSX.utils.book_append_sheet(wb,ws2,L.eLo);XLSX.writeFile(wb,`${L.eF}_${new Date().toISOString().slice(0,10)}.xlsx`);}catch(e){alert('Export failed.');}}
+
+setLang('en');applyMode();localStorage.setItem('mat_provider','anthropic');initFirebase();
+</script>
+</body>
+</html>
